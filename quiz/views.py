@@ -37,9 +37,9 @@ def GetQuizList(request):
 
 @api_view(['GET'])
 def GetQuiz(request):
-    id = request.GET.get('id')
+    quizid = request.GET.get('quizid')
 
-    quizobj = Quiz.objects.get(id=id)
+    quizobj = Quiz.objects.get(id=quizid)
     gen_serializer = QuizSerializer(quizobj).data
 
     return JsonResponse(gen_serializer, safe=False)
@@ -53,21 +53,42 @@ def CreateQuiz(request):
     title = request.data.get('title')
     nosofquestions = request.data.get('nosofquestions')
     shuffleQuestion = request.data.get('shuffleQuestion')
+    if shuffleQuestion == "True":
+        shuffleQuestion = True
+    else:
+        shuffleQuestion = False
     shuffleOptions = request.data.get('shuffleOptions')
+    if shuffleOptions == "True":
+        shuffleOptions = True
+    else:
+        shuffleOptions = False
     start = request.data.get('start')
     end = request.data.get('end')
 
-    quizobj = Quiz.objects.create(user = activeuserobj, title = title, start = start, end = end, shuffleQuestion = shuffleQuestion, shuffleOptions = shuffleOptions, nosofquestions = nosofquestions)
+    correct = request.data.get('correct')
+    wrong = request.data.get('wrong')
+
+    duration = request.data.get('duration')
+
+    quizobj = Quiz.objects.create(user = activeuserobj, title = title, start = start, end = end, shuffleQuestion = shuffleQuestion, shuffleOptions = shuffleOptions, nosofquestions = nosofquestions, correct = correct, wrong = wrong, duration = duration)
     gen_serializer = QuizSerializer(quizobj).data
 
     return JsonResponse(gen_serializer, safe=False)
 
 @api_view(['GET'])
 def GetQuestionList(request):
-    id = request.GET.get('id')
-    quizobj = Quiz.objects.get(id=id)
+    quizid = request.GET.get('quizid')
+    quizobj = Quiz.objects.get(id=quizid)
 
-    questionobj = Question.objects.filter(quiz_list = quizobj).order_by('updated_at')
+    print(quizobj.title)
+    print(quizobj.shuffleQuestion, type(quizobj.shuffleQuestion))
+
+    if quizobj.shuffleQuestion == True:
+        print("True")
+        questionobj = Question.objects.filter(quiz_list = quizobj).order_by('?')
+    else:
+        print("False")
+        questionobj = Question.objects.filter(quiz_list = quizobj).order_by('updated_at')
     gen_serializer = QuestionSerializer(questionobj, many=True).data
 
     return JsonResponse(gen_serializer, safe=False)
@@ -77,33 +98,149 @@ def CreateQuestion(request):
     uid = request.GET.get('uid')
     activeuserobj = User.objects.get(uid=uid)
 
-    id = request.GET.get('id')
-    quizobj = Quiz.objects.get(id=id)
+    quizid = request.GET.get('quizid')
+    quizobj = Quiz.objects.get(id=quizid)
 
     question = request.data.get('question')
+
     option1 = request.data.get('option1')
     option2 = request.data.get('option2')
     option3 = request.data.get('option3')
     option4 = request.data.get('option4')
-    answer1 = request.data.get('answer1')
-    answer2 = request.data.get('answer2')
-    answer3 = request.data.get('answer3')
-    answer4 = request.data.get('answer4')
 
 
-    questionobj = Question.objects.create(user = activeuserobj)
+    if "answer1" in request.data:
+        answer1 = True
+    else:
+        answer1 = False
+    if "answer2" in request.data:
+        answer2 = True
+    else:
+        answer2 = False
+    if "answer3" in request.data:
+        answer3 = True
+    else:
+        answer3 = False
+    if "answer4" in request.data:
+        answer4 = True
+    else:
+        answer4 = False
+    
+    tags = request.data.get('tags')
+    tags = tags.split(',')
+
+    questionobj = Question(user = activeuserobj, question = question, option1 = option1, option2 = option2, option3 = option3, option4 = option4, answer1 = answer1, answer2 = answer2, answer3 = answer3, answer4 = answer4)
+    questionobj.save()
     questionobj.quiz_list.add(quizobj)
+    for tag in tags:
+        try:
+            tagobj = Tag.objects.get(user = activeuserobj, question = questionobj, quiz = quizobj, tag = tag)
+        except Tag.DoesNotExist:
+            tagobj = Tag.objects.create(user = activeuserobj, question = questionobj, quiz = quizobj, tag = tag)
+        
+        questionobj.tag_list.add(tagobj)
+
     gen_serializer = QuestionSerializer(questionobj).data
 
     return JsonResponse(gen_serializer, safe=False)
 
 @api_view(['GET'])
 def GetQuestion(request):
-    id = request.GET.get('id')
+    questionid = request.GET.get('questionid')
 
-    quizobj = Question.objects.get(id=id)
-    gen_serializer = QuestionSerializer(quizobj).data
+    questionobj = Question.objects.get(id=questionid)
+    gen_serializer = QuestionSerializer(questionobj).data
 
     return JsonResponse(gen_serializer, safe=False)
+
+@api_view(['POST'])
+def CreateConsumer(request):
+    uid = request.GET.get('uid')
+    try:
+        activeuserobj = Consumer.objects.get(uid=uid)
+    except Consumer.DoesNotExist:
+        activeuserobj = Consumer.objects.create(uid=uid)
+
+    gen_serializer = ConsumerSerializer(activeuserobj).data 
+    return JsonResponse(gen_serializer, safe=False)
+
+@api_view(['POST'])
+def SubmitQuestion(request):
+    uid = request.GET.get('uid')
+    activeuserobj = Consumer.objects.get(uid=uid)
+
+    quizid = request.GET.get('quizid')
+    quizobj = Quiz.objects.get(id=quizid)
+
+    questionid = request.GET.get('questionid')
+    questionobj = Question.objects.get(id=questionid)
+
+    response1 = True if request.data.get('response1') == "True" else False
+    response2 = True if request.data.get('response2') == "True" else False
+    response3 = True if request.data.get('response3') == "True" else False
+    response4 = True if request.data.get('response4') == "True" else False
+
+    questionresponseobj = QuestionResponse(user = activeuserobj, quiz = quizobj, question = questionobj, response1 = response1, response2 = response2, response3 = response3, response4 = response4)
+    questionresponseobj.save()
+
+    gen_serializer = QuestionResponseSerializer(questionresponseobj).data
+
+    return JsonResponse(gen_serializer, safe=False)
+
+@api_view(['POST'])
+def SubmitQuiz(request):
+    uid = request.GET.get('uid')
+    activeuserobj = Consumer.objects.get(uid=uid)
+
+    quizid = request.GET.get('quizid')
+    quizobj = Quiz.objects.get(id=quizid)
+
+    quizresponseobj = QuizResponse(user = activeuserobj, quiz = quizobj)
+    quizresponseobj.save()
+
+    gen_serializer = QuizResponseSerializer(quizresponseobj).data
+
+    return JsonResponse(gen_serializer, safe=False)
+
+@api_view(['GET'])
+def GetAnalysis(request):
+    uid = request.GET.get('uid')
+    activeuserobj = User.objects.get(uid=uid)
+
+    quizid = request.GET.get('quizid')
+    quizobj = Quiz.objects.get(id=quizid)
+
+    tagsobject = Tag.object.filter(uid = uid, quiz = quizobj)
+
+    data = {}
+
+    for i in tagsobject:
+        if i.tag in data:
+            a = QuestionResponse.objects.get(question = i.question)
+            if a.result == True:
+                data[i.tag]["correct"] += 1
+            else:
+                data[i.tag]["wrong"] -= 1
+        else:
+            a = QuestionResponse.objects.get(question = i.question)
+            data[i.tag] = {"correct" : 0, "wrong" : 0}
+            if a.result == True:
+                data[i.tag]["correct"] += 1
+            else:
+                data[i.tag]["wrong"] -= 1
+
+    tag_data = {}
+
+    for i in data:
+        accuracy = (data[i]["correct"] + data[i]["wrong"]) / (data[i]["correct"] + abs(data[i]["wrong"]))
+        tag_data[i] = {"accuracy" : accuracy}
+    
+    quizresponseobj = QuizResponse.object.get(user = activeuserobj, quiz = quizobj)
+    scored = quizresponseobj.score
+    total = quizobj.nosofquestions
+
+    data = {"tag" : tag_data, "scored" : scored, "total" : total}
+
+    return JsonResponse(data, safe=False)
 
 

@@ -10,4 +10,6 @@ urlpatterns = [
     path('getquestionlist/', views.GetQuestionList),
     path('createquestion/', views.CreateQuestion),
     path('getquestion/', views.GetQuestion),
+    path('submitquestion/', views.SubmitQuestion),
+    path('submitquiz/', views.SubmitQuiz),
 ]
